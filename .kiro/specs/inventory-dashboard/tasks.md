@@ -18,7 +18,7 @@
 - [x] 14. Unit tests — vehicle service
 - [ ] 15. Unit tests — action service
 - [x] 16. Integration tests — vehicle routes
-- [ ] 17. Integration tests — action routes
+- [x] 17. Integration tests — action routes
 
 ---
 
