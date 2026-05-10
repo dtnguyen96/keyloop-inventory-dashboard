@@ -2,6 +2,7 @@ import express from 'express';
 import { httpLogger } from './middleware/logger.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { vehicleRouter } from './modules/vehicles/vehicle.router.js';
+import { actionRouter } from './modules/actions/action.router.js';
 
 const app = express();
 
@@ -22,6 +23,9 @@ app.get('/health', (_req, res) => {
 
 // Vehicle API routes
 app.use('/api/vehicles', vehicleRouter);
+
+// Action API routes (nested under vehicles)
+app.use('/api/vehicles/:vehicleId/actions', actionRouter);
 
 // ── Global error handler (must be last) ──────────────────────────────────────
 app.use(errorHandler);

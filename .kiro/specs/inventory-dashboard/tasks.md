@@ -12,7 +12,7 @@
 - [x] 8. Vehicle router
 - [x] 9. Action repository
 - [x] 10. Action service
-- [ ] 11. Action router
+- [x] 11. Action router
 - [ ] 12. Health check endpoint
 - [ ] 13. OpenAPI specification
 - [ ] 14. Unit tests — vehicle service
