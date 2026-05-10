@@ -7,7 +7,7 @@
 - [x] 3. Database seed data
 - [x] 4. Shared types, constants, and error classes
 - [x] 5. Express app setup and middleware
-- [ ] 6. Vehicle repository
+- [x] 6. Vehicle repository
 - [ ] 7. Vehicle service
 - [ ] 8. Vehicle router
 - [ ] 9. Action repository
