@@ -15,9 +15,9 @@
 - [x] 11. Action router
 - [x] 12. Health check endpoint
 - [x] 13. OpenAPI specification
-- [ ] 14. Unit tests — vehicle service
+- [x] 14. Unit tests — vehicle service
 - [ ] 15. Unit tests — action service
-- [ ] 16. Integration tests — vehicle routes
+- [x] 16. Integration tests — vehicle routes
 - [ ] 17. Integration tests — action routes
 
 ---
