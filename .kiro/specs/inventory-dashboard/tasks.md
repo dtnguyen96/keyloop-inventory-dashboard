@@ -10,7 +10,7 @@
 - [x] 6. Vehicle repository
 - [x] 7. Vehicle service
 - [x] 8. Vehicle router
-- [ ] 9. Action repository
+- [x] 9. Action repository
 - [ ] 10. Action service
 - [ ] 11. Action router
 - [ ] 12. Health check endpoint
