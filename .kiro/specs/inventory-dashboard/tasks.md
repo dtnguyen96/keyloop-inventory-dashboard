@@ -5,7 +5,7 @@
 - [x] 1. Project scaffolding and configuration
 - [x] 2. Database schema and migrations
 - [x] 3. Database seed data
-- [ ] 4. Shared types, constants, and error classes
+- [x] 4. Shared types, constants, and error classes
 - [ ] 5. Express app setup and middleware
 - [ ] 6. Vehicle repository
 - [ ] 7. Vehicle service
