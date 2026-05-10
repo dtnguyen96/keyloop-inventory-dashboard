@@ -1,0 +1,526 @@
+openapi: 3.0.3
+info:
+  title: Intelligent Inventory Dashboard API
+  description: |
+    RESTful API for dealership managers to monitor vehicle stock, identify aging
+    inventory (vehicles in stock for 90+ days), and log actions against aging vehicles.
+  version: 1.0.0
+  contact:
+    name: Inventory Dashboard
+
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+
+tags:
+  - name: Health
+    description: Server liveness probe
+  - name: Vehicles
+    description: Vehicle inventory operations
+  - name: Actions
+    description: Actions logged against aging vehicles
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Returns server liveness status and uptime in seconds.
+      operationId: getHealth
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: ok
+                uptime: 142.3
+
+  /api/vehicles:
+    get:
+      tags:
+        - Vehicles
+      summary: List vehicles
+      description: |
+        Returns a paginated list of all vehicles in inventory. Supports optional
+        filtering by make, model, and age range. All vehicles include computed
+        `daysInInventory` and `isAging` fields.
+      operationId: listVehicles
+      parameters:
+        - name: make
+          in: query
+          description: Filter by vehicle make (case-insensitive partial match)
+          required: false
+          schema:
+            type: string
+            example: Toyota
+        - name: model
+          in: query
+          description: Filter by vehicle model (case-insensitive partial match)
+          required: false
+          schema:
+            type: string
+            example: Camry
+        - name: minAge
+          in: query
+          description: Minimum days in inventory (inclusive). Must be >= 0 and <= maxAge when both are provided.
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            example: 30
+        - name: maxAge
+          in: query
+          description: Maximum days in inventory (inclusive). Must be >= 0 and >= minAge when both are provided.
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            example: 120
+        - name: page
+          in: query
+          description: Page number (1-indexed)
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+            example: 1
+        - name: limit
+          in: query
+          description: Number of results per page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+            example: 20
+      responses:
+        '200':
+          description: Paginated list of vehicles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedVehicles'
+        '400':
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidAge:
+                  summary: Non-numeric age parameter
+                  value:
+                    error:
+                      code: VALIDATION_ERROR
+                      message: minAge must be a non-negative integer
+                      statusCode: 400
+                ageRangeConflict:
+                  summary: minAge greater than maxAge
+                  value:
+                    error:
+                      code: VALIDATION_ERROR
+                      message: minAge must be less than or equal to maxAge
+                      statusCode: 400
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/vehicles/aging/summary:
+    get:
+      tags:
+        - Vehicles
+      summary: Aging stock summary
+      description: |
+        Returns aggregate statistics for all vehicles currently considered aging
+        (in inventory for 90+ days). Includes total count, oldest age, and average age.
+      operationId: getAgingSummary
+      responses:
+        '200':
+          description: Aging stock aggregate statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgingSummary'
+              example:
+                totalAging: 12
+                oldestAgeDays: 187
+                averageAgeDays: 114.5
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/vehicles/{id}:
+    get:
+      tags:
+        - Vehicles
+      summary: Get vehicle by ID
+      description: Returns a single vehicle record including its full action history, sorted by most recent first.
+      operationId: getVehicleById
+      parameters:
+        - name: id
+          in: path
+          description: Vehicle UUID
+          required: true
+          schema:
+            type: string
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+      responses:
+        '200':
+          description: Vehicle with action history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VehicleWithActions'
+        '404':
+          description: Vehicle not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: VEHICLE_NOT_FOUND
+                  message: "Vehicle with id '550e8400-e29b-41d4-a716-446655440000' does not exist"
+                  statusCode: 404
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/vehicles/{id}/actions:
+    post:
+      tags:
+        - Actions
+      summary: Log action on aging vehicle
+      description: |
+        Records a new action against a vehicle. The vehicle must be aging
+        (in inventory for 90+ days). Returns the created action record.
+
+        When `actionType` is `OTHER`, the `notes` field is required.
+      operationId: createVehicleAction
+      parameters:
+        - name: id
+          in: path
+          description: Vehicle UUID
+          required: true
+          schema:
+            type: string
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateActionRequest'
+            examples:
+              priceReduction:
+                summary: Price reduction action
+                value:
+                  actionType: PRICE_REDUCTION
+                  notes: Reducing price by 5% to move stock
+              otherWithNotes:
+                summary: Other action (notes required)
+                value:
+                  actionType: OTHER
+                  notes: Contacted fleet buyer — awaiting response
+      responses:
+        '201':
+          description: Action created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VehicleAction'
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missingActionType:
+                  summary: Missing actionType
+                  value:
+                    error:
+                      code: VALIDATION_ERROR
+                      message: actionType is required
+                      statusCode: 400
+                otherWithoutNotes:
+                  summary: OTHER action type without notes
+                  value:
+                    error:
+                      code: VALIDATION_ERROR
+                      message: notes are required when actionType is OTHER
+                      statusCode: 400
+        '403':
+          description: Vehicle is not aging
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: VEHICLE_NOT_AGING
+                  message: "Vehicle with id '550e8400-e29b-41d4-a716-446655440000' is not aging and cannot have an action logged"
+                  statusCode: 403
+        '404':
+          description: Vehicle not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: VEHICLE_NOT_FOUND
+                  message: "Vehicle with id '550e8400-e29b-41d4-a716-446655440000' does not exist"
+                  statusCode: 404
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - uptime
+      properties:
+        status:
+          type: string
+          enum:
+            - ok
+          description: Always "ok" when the server is healthy
+        uptime:
+          type: number
+          format: float
+          description: Server uptime in seconds
+          example: 142.3
+
+    Vehicle:
+      type: object
+      required:
+        - id
+        - vin
+        - make
+        - model
+        - year
+        - colour
+        - price
+        - addedAt
+        - createdAt
+        - daysInInventory
+        - isAging
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique vehicle identifier (UUID v4)
+          example: 550e8400-e29b-41d4-a716-446655440000
+        vin:
+          type: string
+          description: Vehicle Identification Number (unique)
+          example: 1HGBH41JXMN109186
+        make:
+          type: string
+          description: Vehicle manufacturer
+          example: Toyota
+        model:
+          type: string
+          description: Vehicle model name
+          example: Camry
+        year:
+          type: integer
+          description: Model year
+          example: 2022
+        colour:
+          type: string
+          description: Exterior colour
+          example: Midnight Blue
+        price:
+          type: number
+          format: float
+          description: Listed price in the dealership's currency
+          example: 28500.00
+        addedAt:
+          type: string
+          format: date-time
+          description: ISO 8601 UTC timestamp when the vehicle was added to inventory
+          example: '2024-01-15T09:30:00.000Z'
+        createdAt:
+          type: string
+          format: date-time
+          description: ISO 8601 UTC timestamp when the record was created in the database
+          example: '2024-01-15T09:30:00.000Z'
+        daysInInventory:
+          type: integer
+          description: Number of full days the vehicle has been in inventory (computed from addedAt)
+          example: 95
+        isAging:
+          type: boolean
+          description: True when daysInInventory >= 90
+          example: true
+
+    VehicleAction:
+      type: object
+      required:
+        - id
+        - vehicleId
+        - actionType
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique action identifier (UUID v4)
+          example: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+        vehicleId:
+          type: string
+          format: uuid
+          description: ID of the vehicle this action belongs to
+          example: 550e8400-e29b-41d4-a716-446655440000
+        actionType:
+          $ref: '#/components/schemas/ActionType'
+        notes:
+          type: string
+          nullable: true
+          maxLength: 500
+          description: Optional free-text notes. Required when actionType is OTHER.
+          example: Reducing price by 5% to move stock
+        createdAt:
+          type: string
+          format: date-time
+          description: ISO 8601 UTC timestamp when the action was logged
+          example: '2024-04-20T14:22:00.000Z'
+
+    VehicleWithActions:
+      allOf:
+        - $ref: '#/components/schemas/Vehicle'
+        - type: object
+          required:
+            - actions
+          properties:
+            actions:
+              type: array
+              description: Full action history for this vehicle, ordered by createdAt descending
+              items:
+                $ref: '#/components/schemas/VehicleAction'
+
+    PaginatedVehicles:
+      type: object
+      required:
+        - data
+        - total
+        - page
+        - limit
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Vehicle'
+        total:
+          type: integer
+          description: Total number of vehicles matching the applied filters
+          example: 87
+        page:
+          type: integer
+          description: Current page number
+          example: 1
+        limit:
+          type: integer
+          description: Number of results per page
+          example: 20
+
+    AgingSummary:
+      type: object
+      required:
+        - totalAging
+        - oldestAgeDays
+        - averageAgeDays
+      properties:
+        totalAging:
+          type: integer
+          description: Total number of vehicles currently aging (daysInInventory >= 90)
+          example: 12
+        oldestAgeDays:
+          type: number
+          format: float
+          description: Age in days of the oldest aging vehicle
+          example: 187
+        averageAgeDays:
+          type: number
+          format: float
+          description: Average age in days across all aging vehicles
+          example: 114.5
+
+    ActionType:
+      type: string
+      description: Predefined action categories for aging vehicle management
+      enum:
+        - PRICE_REDUCTION
+        - PROMOTION
+        - TRANSFER
+        - AUCTION
+        - OTHER
+      example: PRICE_REDUCTION
+
+    CreateActionRequest:
+      type: object
+      required:
+        - actionType
+      properties:
+        actionType:
+          $ref: '#/components/schemas/ActionType'
+        notes:
+          type: string
+          nullable: true
+          maxLength: 500
+          description: |
+            Optional free-text notes about the action.
+            **Required** when `actionType` is `OTHER`.
+          example: Contacted fleet buyer — awaiting response
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+            - statusCode
+          properties:
+            code:
+              type: string
+              description: Machine-readable error code
+              enum:
+                - VALIDATION_ERROR
+                - VEHICLE_NOT_FOUND
+                - VEHICLE_NOT_AGING
+                - INTERNAL_ERROR
+              example: VEHICLE_NOT_FOUND
+            message:
+              type: string
+              description: Human-readable error description
+              example: "Vehicle with id '550e8400-e29b-41d4-a716-446655440000' does not exist"
+            statusCode:
+              type: integer
+              description: HTTP status code mirrored in the response body
+              example: 404
+
+  responses:
+    InternalError:
+      description: Unexpected server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: INTERNAL_ERROR
+              message: An unexpected error occurred
+              statusCode: 500
