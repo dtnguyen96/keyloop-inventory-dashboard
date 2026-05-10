@@ -9,7 +9,7 @@
 - [x] 5. Express app setup and middleware
 - [x] 6. Vehicle repository
 - [x] 7. Vehicle service
-- [ ] 8. Vehicle router
+- [x] 8. Vehicle router
 - [ ] 9. Action repository
 - [ ] 10. Action service
 - [ ] 11. Action router
